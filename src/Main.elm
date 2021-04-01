@@ -6,6 +6,14 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick)
 import Http
 import Json.Decode exposing (Decoder, field, string)
+import Bootstrap.CDN as CDN
+import Bootstrap.Grid as Grid
+import Bootstrap.Grid.Row as Row
+import Bootstrap.Grid.Col as Col
+import Bootstrap.Form.Input as Input
+import Bootstrap.Form.InputGroup as InputGroup
+import Bootstrap.Button as Button
+
 
 main = Browser.element {init = init, update = update, view = view, subscriptions = subscriptions}
 
@@ -39,7 +47,7 @@ type alias Connection = { bus_id: Int
 
 init : () -> (Model, Cmd Msg)
 init _ = ({ content = ""
-          , currently_playing = ""
+          , currently_playing = "stopped"
           }, Cmd.none)
 
 type Msg
@@ -86,17 +94,28 @@ subscriptions model =
 
 view : Model -> Html Msg
 view model =
-  div []
-    ([ div [] [text ("Currently playing " ++ model.currently_playing) ]
-     , input [ placeholder "Example to play", value model.content, onInput Change ] []
-     ]
-  ++ if String.isEmpty model.content
-     then []
-     else  [ button [ onClick Play ] [ text "Play" ]
-           , button [ onClick StopPlaying ] [ text "Stop" ]
-           ]
-    )
-
+    let
+        bd = String.isEmpty model.content
+        play_primary = if model.currently_playing == "stopped" then Button.primary else Button.secondary
+        stop_primary = if model.currently_playing == "stopped" then Button.secondary else Button.primary
+    in
+    div []
+        [ CDN.stylesheet
+        , Grid.row [ Row.leftXs ]
+            [ Grid.col [Col.xs5]
+                   [text ("Currently playing " ++ model.currently_playing) ]
+            , Grid.col [ Col.xs4 ] [ InputGroup.config
+                                         (InputGroup.text [ Input.placeholder "Example to play"
+                                                          , Input.onInput Change ])
+                                   |> InputGroup.predecessors
+                                         [ InputGroup.span [] [ text "@" ] ]
+                                   |> InputGroup.view]
+            ]
+        , Grid.row [ Row.leftXs ]
+            [ Grid.col [ Col.xs1 ] [ Button.button [ play_primary, Button.disabled bd, Button.onClick Play ] [ text "Play" ] ]
+            , Grid.col [ Col.xs1 ] [ Button.button [ stop_primary, Button.disabled bd, Button.onClick StopPlaying ] [ text "Stop" ] ]
+            ]
+        ]
 
 
 playDecoder : Decoder String
