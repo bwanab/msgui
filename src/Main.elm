@@ -5,7 +5,7 @@ import Html exposing (Html, Attribute, div, input, text, button)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onInput, onClick)
 import Http
-import Json.Decode exposing (Decoder, field, string)
+import Json.Decode exposing (Decoder, field, string, map, map2, int, list)
 import Bootstrap.CDN as CDN
 import Bootstrap.Grid as Grid
 import Bootstrap.Grid.Row as Row
@@ -13,12 +13,14 @@ import Bootstrap.Grid.Col as Col
 import Bootstrap.Form.Input as Input
 import Bootstrap.Form.InputGroup as InputGroup
 import Bootstrap.Button as Button
+import Bootstrap.Table as Table
 
 
 main = Browser.element {init = init, update = update, view = view, subscriptions = subscriptions}
 
 type alias Model = { content: String
                    , currently_playing: String
+                   , connections: List Connection
                    }
 
 type alias Parameter = { name: String
@@ -45,16 +47,21 @@ type alias Connection = { bus_id: Int
                         , to_node_param: NodeParam
                         }
 
+type alias ReturnVal = { currently_playing: String
+                       , connections: List Connection
+                       }
+
 init : () -> (Model, Cmd Msg)
 init _ = ({ content = ""
           , currently_playing = "stopped"
+          , connections = []
           }, Cmd.none)
 
 type Msg
     = Change String
     | Play
     | StopPlaying
-    | GotPlay (Result Http.Error String)
+    | GotPlay (Result Http.Error ReturnVal)
 
 
 
@@ -82,8 +89,10 @@ update msg model =
 
         GotPlay result ->
             case result of
-                Ok url ->
-                    ({ model | currently_playing = url }, Cmd.none)
+                Ok rval ->
+                    ({ model | currently_playing = rval.currently_playing
+                             , connections = rval.connections
+                     }, Cmd.none)
                 Err _ ->
                     (model, Cmd.none)
 
@@ -98,6 +107,21 @@ view model =
         bd = String.isEmpty model.content
         play_primary = if model.currently_playing == "stopped" then Button.primary else Button.secondary
         stop_primary = if model.currently_playing == "stopped" then Button.secondary else Button.primary
+        table =
+            Table.table
+            { options = [ Table.striped, Table.hover, Table.small ]
+            , thead =
+                Table.simpleThead
+                    [ Table.th [] [ text "Bus Id" ]
+                    , Table.th [] [ text "Description" ]
+                    , Table.th [] [ text "From" ]
+                    , Table.th [] [ text "To" ]
+                    ]
+            , tbody =
+                Table.tbody []
+                    (List.map connectionRow
+                         (List.filter isControl model.connections))
+            }
     in
     div []
         [ CDN.stylesheet
@@ -115,9 +139,48 @@ view model =
             [ Grid.col [ Col.xs1 ] [ Button.button [ play_primary, Button.disabled bd, Button.onClick Play ] [ text "Play" ] ]
             , Grid.col [ Col.xs1 ] [ Button.button [ stop_primary, Button.disabled bd, Button.onClick StopPlaying ] [ text "Stop" ] ]
             ]
+        , Grid.row [ Row.leftXs ]
+            [ Grid.col [ Col.xs8 ] [ table ] ]
         ]
 
+isControl : Connection -> Bool
+isControl connection = connection.bus_type == "control"
 
-playDecoder : Decoder String
+connectionRow : Connection -> Table.Row msg
+connectionRow connection =
+    Table.tr []
+        [ Table.td [] [ text (String.fromInt connection.bus_id) ]
+        , Table.td [] [ text connection.desc ]
+        , Table.td [] [ text connection.from_node_param.param_name ]
+        , Table.td [] [ text connection.to_node_param.param_name ]
+        ]
+
+playDecoder : Decoder ReturnVal
 playDecoder =
-    field "playing" string
+    Json.Decode.map2 ReturnVal
+        ( field "playing" string )
+        ( field "connections" (Json.Decode.list connectionDecoder))
+
+
+-- connectionsDecoder : Decoder (List Connection)
+-- connectionsDecoder =
+--     Json.Decode.decodeString (list connectionDecoder)
+
+-- connectionsDecoder : Decoder (List Connection)
+-- connectionsDecoder =
+--     Json.Decode.map (list connectionDecoder)
+
+connectionDecoder : Decoder Connection
+connectionDecoder =
+    Json.Decode.map5 Connection
+        ( field "bus_id" int )
+        ( field "bus_type" string )
+        ( field "desc" string )
+        ( field "from_node_param" nodeParamDecoder)
+        ( field "to_node_param" nodeParamDecoder)
+
+nodeParamDecoder : Decoder NodeParam
+nodeParamDecoder =
+    Json.Decode.map2 NodeParam
+        ( field "node_id" int )
+        ( field "param_name" string)
