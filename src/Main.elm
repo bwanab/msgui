@@ -51,6 +51,8 @@ type alias ReturnVal = { currently_playing: String
                        , connections: List Connection
                        }
 
+type alias StopReturn = { currently_playing: String }
+
 init : () -> (Model, Cmd Msg)
 init _ = ({ content = ""
           , currently_playing = "stopped"
@@ -62,6 +64,7 @@ type Msg
     | Play
     | StopPlaying
     | GotPlay (Result Http.Error ReturnVal)
+    | GotStop (Result Http.Error StopReturn)
 
 
 
@@ -83,7 +86,7 @@ update msg model =
             ( model
             , Http.get
                   { url = "http://localhost:4000/stop"
-                  , expect = Http.expectJson GotPlay playDecoder
+                  , expect = Http.expectJson GotStop stopDecoder
                   }
             )
 
@@ -92,6 +95,14 @@ update msg model =
                 Ok rval ->
                     ({ model | currently_playing = rval.currently_playing
                              , connections = rval.connections
+                     }, Cmd.none)
+                Err _ ->
+                    (model, Cmd.none)
+
+        GotStop result ->
+            case result of
+                Ok rval ->
+                    ({ model | currently_playing = rval.currently_playing
                      }, Cmd.none)
                 Err _ ->
                     (model, Cmd.none)
@@ -122,6 +133,12 @@ view model =
                     (List.map connectionRow
                          (List.filter isControl model.connections))
             }
+        tableGrid = if model.currently_playing == "stopped"
+                    then
+                        Grid.row [ Row.leftXs ] [ Grid.col [Col.xs8] [ text "" ] ]
+                    else
+                        Grid.row [ Row.leftXs ]
+                            [ Grid.col [ Col.xs8 ] [ table ] ]
     in
     div []
         [ CDN.stylesheet
@@ -139,8 +156,7 @@ view model =
             [ Grid.col [ Col.xs1 ] [ Button.button [ play_primary, Button.disabled bd, Button.onClick Play ] [ text "Play" ] ]
             , Grid.col [ Col.xs1 ] [ Button.button [ stop_primary, Button.disabled bd, Button.onClick StopPlaying ] [ text "Stop" ] ]
             ]
-        , Grid.row [ Row.leftXs ]
-            [ Grid.col [ Col.xs8 ] [ table ] ]
+        , tableGrid
         ]
 
 isControl : Connection -> Bool
@@ -155,20 +171,17 @@ connectionRow connection =
         , Table.td [] [ text connection.to_node_param.param_name ]
         ]
 
+stopDecoder : Decoder StopReturn
+stopDecoder =
+    Json.Decode.map StopReturn
+        ( field "playing" string )
+
 playDecoder : Decoder ReturnVal
 playDecoder =
     Json.Decode.map2 ReturnVal
         ( field "playing" string )
         ( field "connections" (Json.Decode.list connectionDecoder))
 
-
--- connectionsDecoder : Decoder (List Connection)
--- connectionsDecoder =
---     Json.Decode.decodeString (list connectionDecoder)
-
--- connectionsDecoder : Decoder (List Connection)
--- connectionsDecoder =
---     Json.Decode.map (list connectionDecoder)
 
 connectionDecoder : Decoder Connection
 connectionDecoder =
