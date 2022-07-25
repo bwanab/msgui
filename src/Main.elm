@@ -139,7 +139,7 @@ update msg model =
         GotBusVals result ->
             case result of
                 Ok rval ->
-                    ({ model | bus_vals = Debug.log "bus_vals" rval.bus_vals
+                    ({ model | bus_vals = rval.bus_vals
                      }, Cmd.none
                     )
                 Err _ ->
@@ -208,7 +208,7 @@ isControl connection = connection.bus_type == "control"
 
 isBusId : Int -> BusVal -> Bool
 isBusId bus_id bus_val =
-    Debug.log "bus_id" bus_id == Debug.log "bus_val.bus_id" bus_val.bus_id
+    bus_id == bus_val.bus_id
 
 findFirst : (a -> Bool) -> List a -> Maybe a
 findFirst f vals =
@@ -221,10 +221,12 @@ connectionRow bus_vals connection =
         , Table.td [] [ text connection.desc ]
         , Table.td [] [ text connection.from_node_param.param_name ]
         , Table.td [] [ text connection.to_node_param.param_name ]
-        , Table.td [ Table.cellAttr <| align "right " ] [ text (case (findFirst (isBusId connection.bus_id) bus_vals) of
-                                Nothing -> ""
-                                Just a -> format { usLocale | decimals = 2 } a.bus_val
-                                )]
+        , Table.td [ Table.cellAttr <| align "right " ]
+            [ text
+                  (case (findFirst (isBusId connection.bus_id) bus_vals) of
+                       Nothing -> ""
+                       Just a -> format { usLocale | decimals = 2 } a.bus_val
+                  )]
         ]
 
 stopDecoder : Decoder StopReturn
